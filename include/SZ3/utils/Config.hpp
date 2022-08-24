@@ -117,6 +117,7 @@ namespace SZ {
             interpBlockSize = cfg.GetInteger("AlgoSettings", "InterpolationBlockSize", interpBlockSize);
             blockSize = cfg.GetInteger("AlgoSettings", "BlockSize", blockSize);
             quantbinCnt = cfg.GetInteger("AlgoSettings", "QuantizationBinTotal", quantbinCnt);
+            adaptive_bits = cfg.GetInteger("AlgoSettings", "AdaptiveBits", adaptive_bits);
 
 
         }
@@ -144,6 +145,7 @@ namespace SZ {
             write(stride, c);
             write(pred_dim, c);
             write(openmp, c);
+            write(adaptive_bits, c);
         };
 
         void load(const unsigned char *&c) {
@@ -169,6 +171,7 @@ namespace SZ {
             read(stride, c);
             read(pred_dim, c);
             read(openmp, c);
+            read(adaptive_bits, c);
         }
 
         void print() {
@@ -176,7 +179,7 @@ namespace SZ {
         }
 
         static size_t size_est() {
-            return sizeof(size_t) * 5 + sizeof(double) * 4 + sizeof(bool) * 5 + sizeof(uint8_t) * 6 + sizeof(int) * 5 + 50; //50 is for redundancy
+            return sizeof(size_t) * 5 + sizeof(double) * 4 + sizeof(bool) * 5 + sizeof(uint8_t) * 6 + sizeof(int) * 6 + 50; //50 is for redundancy
         }
 
         char N;
@@ -202,6 +205,7 @@ namespace SZ {
         int blockSize;
         int stride; //not used now
         int pred_dim; // not used now
+        int adaptive_bits = 0;
 
     };
 

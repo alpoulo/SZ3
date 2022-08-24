@@ -183,12 +183,16 @@ namespace SZ {
         virtual void postcompress_data() {
         }
 
+        void postcompress_data(std::vector<int> &quant_inds) {};
+
         virtual void postdecompress_data() {
         }
 
         virtual void precompress_data() {};
 
         virtual void predecompress_data() {};
+
+        void predecompress_data(std::vector<int>, size_t num_elements) {};
 
 
     private:

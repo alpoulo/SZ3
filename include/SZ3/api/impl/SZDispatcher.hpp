@@ -6,6 +6,7 @@
 #include "SZ3/utils/Config.hpp"
 #include "SZ3/api/impl/SZInterp.hpp"
 #include "SZ3/api/impl/SZLorenzoReg.hpp"
+#include "SZ3/api/impl/SZAdaptiveLorenzoReg.hpp"
 #include <cmath>
 
 
@@ -17,7 +18,11 @@ char *SZ_compress_dispatcher(SZ::Config &conf, T *data, size_t &outSize) {
 
     char *cmpData;
     if (conf.cmprAlgo == SZ::ALGO_LORENZO_REG) {
-        cmpData = (char *) SZ_compress_LorenzoReg<T, N>(conf, data, outSize);
+        if (conf.adaptive_bits) {
+            cmpData = (char *) SZ_compress_AdaptiveLorenzoReg<T, N>(conf, data, outSize);
+        } else {
+            cmpData = (char *) SZ_compress_LorenzoReg<T, N>(conf, data, outSize);
+        }
     } else if (conf.cmprAlgo == SZ::ALGO_INTERP) {
         cmpData = (char *) SZ_compress_Interp<T, N>(conf, data, outSize);
     } else if (conf.cmprAlgo == SZ::ALGO_INTERP_LORENZO) {
@@ -30,7 +35,11 @@ char *SZ_compress_dispatcher(SZ::Config &conf, T *data, size_t &outSize) {
 template<class T, SZ::uint N>
 void SZ_decompress_dispatcher(SZ::Config &conf, char *cmpData, size_t cmpSize, T *decData) {
     if (conf.cmprAlgo == SZ::ALGO_LORENZO_REG) {
-        SZ_decompress_LorenzoReg<T, N>(conf, cmpData, cmpSize, decData);
+        if (conf.adaptive_bits) {
+            SZ_decompress_AdaptiveLorenzoReg<T, N>(conf, cmpData, cmpSize, decData);
+        } else {
+            SZ_decompress_LorenzoReg<T, N>(conf, cmpData, cmpSize, decData);
+        }
     } else if (conf.cmprAlgo == SZ::ALGO_INTERP) {
         SZ_decompress_Interp<T, N>(conf, cmpData, cmpSize, decData);
     } else {

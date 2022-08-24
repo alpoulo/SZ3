@@ -52,6 +52,7 @@ void usage() {
 //    printf("		-P <point-wise relative error bound>: specifying point-wise relative error bound\n");
     printf("		-S <PSNR>: specifying PSNR\n");
     printf("		-N <normErr>: specifying normErr\n");
+    printf("	-q <adaptive quantization bits> : number of adaptive quantization bits to use\n");
     printf("* dimensions: \n");
     printf("	-1 <nx> : dimension for 1D data such as data[nx]\n");
     printf("	-2 <nx> <ny> : dimensions for 2D data such as data[ny][nx]\n");
@@ -205,6 +206,9 @@ int main(int argc, char *argv[]) {
     char *psnrErrorBound = nullptr;
     char *normErrorBound = nullptr;
 
+    bool adaptive = false;
+    int adaptive_bits = 0;
+
     bool sz2mode = false;
 
     size_t r4 = 0;
@@ -357,6 +361,13 @@ int main(int argc, char *argv[]) {
                     usage();
                 psnrErrorBound = argv[i];
                 break;
+            case 'q':
+                if (++i == argc) {
+                    usage();
+                }
+                adaptive_bits = atoi(argv[i]);
+                adaptive = true;
+                break;
             default:
                 usage();
                 break;
@@ -451,6 +462,11 @@ int main(int argc, char *argv[]) {
             exit(0);
         }
     }
+
+    if (adaptive_bits) {
+        conf.adaptive_bits = adaptive_bits;
+    }
+
 
     if (compression) {
 
