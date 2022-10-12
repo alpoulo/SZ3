@@ -10,6 +10,10 @@
 #include "SZ3/utils/Timer.hpp"
 #include "SZ3/def.hpp"
 #include <cstring>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define BUFSIZE 256
 
 namespace SZ {
     template<class T, uint N, class Frontend, class Encoder, class Lossless>
@@ -29,27 +33,47 @@ namespace SZ {
 
         uchar *compress(const Config &conf, T *data, size_t &compressed_size) {
 
-
             std::vector<int> quant_inds = frontend.compress(data);
-           
-            //std::vector<int> adapt_inds(quant_inds.begin() + frontend.get_num_elements(), quant_inds.end());
-            //quant_inds.resize(frontend.get_num_elements());
+            
+            char path[BUFSIZE];
+            const char *envvar = "QUANTENTROPY";
 
+            if (!getenv(envvar)) {
+                fprintf(stderr, "the environment variable %s was not found!\n", envvar);
+                exit(1);
+            }
+            if (snprintf(path, BUFSIZE, "%s", getenv(envvar)) >= BUFSIZE) {
+                fprintf(stderr, "BUFSIZE of %d was too small! aborting.\n", BUFSIZE);
+                exit(1);
+            }
+
+            writefile(path, quant_inds.data(), quant_inds.size());
+           
             encoder.preprocess_encode(quant_inds, 0);
             size_t bufferSize = 1.2 * (frontend.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
+    
 
             uchar *buffer = new uchar[bufferSize];
             uchar *buffer_pos = buffer;
 
             frontend.save(buffer_pos);
 
+            size_t outsize = 0;
+
             encoder.save(buffer_pos);
-            encoder.encode(quant_inds, buffer_pos);
+            outsize = encoder.encode(quant_inds, buffer_pos);
             encoder.postprocess_encode();
 
             assert(buffer_pos - buffer < bufferSize);
 
+            std::cout << "encoderOutsize = " << outsize << "\n";
+
+            //compute entropy of data
+            //dump buffer to file
             uchar *lossless_data = lossless.compress(buffer, buffer_pos - buffer, compressed_size);
+            std::cout << "bufferSizeEst = " << bufferSize << "\n";
+            std::cout << "bufferSize: " << buffer_pos - buffer << "\n";
+            std::cout << "compressedSize = " << compressed_size << "\n";
             lossless.postcompress_data(buffer);
 
             return lossless_data;
@@ -62,7 +86,7 @@ namespace SZ {
 
         T *decompress(uchar const *cmpData, const size_t &cmpSize, T *decData) {
             size_t remaining_length = cmpSize;
-
+            
             Timer timer(true);
             auto compressed_data = lossless.decompress(cmpData, remaining_length);
             uchar const *compressed_data_pos = compressed_data;

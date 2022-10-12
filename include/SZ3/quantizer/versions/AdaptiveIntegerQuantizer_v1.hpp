@@ -4,9 +4,9 @@
 #include <cstring>
 #include <cassert>
 #include <iostream>
+#include <vector>
 #include <stdio.h>
 #include <stdlib.h>
-#include <vector>
 #include "SZ3/def.hpp"
 #include "SZ3/quantizer/Quantizer.hpp"
 #include "SZ3/utils/FileUtil.hpp"
@@ -41,6 +41,12 @@ namespace SZ {
 
         int get_ab() const { return adaptive_bits; }
 
+        size_t get_packed_size() const { return packed_size; }
+        
+        size_t get_actual_size() const { return actual_adapt_ctr; }
+        
+        size_t get_adapt_size() const { return adapt_inds.size(); }
+
         void set_ab(int ab) {
             adaptive_bits = ab;
         }
@@ -55,10 +61,10 @@ namespace SZ {
         double get_max_error() { return max_error; }
 
         std::vector<int> get_adapt_inds() { return adapt_inds; }
-        
+
         /*
          * quantize data with a prediction value, return the quantization index and the decompressed data
-         * uses adaptive_flag to indicate adaptive quantization has occurred
+         * uses value of '1' in quantization array to indicate adaptive quantization has occurred
          */
         int quantize_and_overwrite(T &data, T pred) {
             T diff = data - pred;
@@ -78,25 +84,28 @@ namespace SZ {
                 if (fabs(decompressed_data - data) > this->error_bound) {
                     unpred.push_back(data);
                     return 0;
+                } else if (quant_index_shifted == 1) {
+                    // value of '1' is reserved
+                    unpred.push_back(data);
+                    return 0;
                 } else {
                     single_quant_ctr++;
                     if (fabs(decompressed_data - data) < this->max_error) {
                         data = decompressed_data;
-                        // adaptive flag indicates no adaptive quantization occurred
-                        adapt_inds.push_back(adaptive_flag);
+                        return quant_index_shifted;
                     } else {
                         multi_quant_ctr++;
+                        actual_inds.push_back(quant_index_shifted);
                         adaptive_quantize_encode(data, decompressed_data);
+                        // save reserved value to indicate adaptive quantization occurred
+                        return 1;
                     }
-                    // keep all original quantization bins
-                    return quant_index_shifted;
                 }
             } else {
                 unpred.push_back(data);
                 return 0;
             }
         }
-
 
         void adaptive_quantize_encode(T &data, T decompressed_data) {
             double precision = this->error_bound;
@@ -110,6 +119,7 @@ namespace SZ {
                     decompressed_data -= precision;
                 }
             }
+            //actual_adapt_ctr++;
             data = decompressed_data;
             actual_adapt_ctr++;
             adapt_inds.push_back(adaptive_index);
@@ -133,21 +143,22 @@ namespace SZ {
         T recover(T pred, int quant_index) {
             if (quant_index) {
                 return recover_pred(pred, quant_index);
+                //return recover_pred_2(pred, quant_index);
             } else {
                 return recover_unpred();
             }
         }
 
         T recover_pred(T pred, int quant_index) {
-            T data = pred + 2 * (quant_index - this->radius) * this->error_bound;
-            if (adapt_ctr < adapt_inds.size()) {
-                int adapt_index = adapt_inds[adapt_ctr++]; 
-                if (adapt_index == adaptive_flag) {
-                    return data;
-                }
+            if (quant_index == 1) {
+                assert(actual_ctr < actual_inds.size());
+                quant_index = actual_inds[actual_ctr++];
+                T data = pred + 2 * (quant_index - this->radius) * this->error_bound;
+                int adapt_index = adapt_inds[adapt_ctr++];
                 return adaptive_quantize_decode(data, adapt_index);
             }
             else {
+                T data = pred + 2 * (quant_index - this->radius) * this->error_bound;
                 return data;
             }
         }
@@ -182,7 +193,7 @@ namespace SZ {
             c += packed_inds.size() * sizeof(int);
             memcpy(c, unpred.data(), unpred.size() * sizeof(T));
             c += unpred.size() * sizeof(T);
-            std::cout << "outsize = " << packed_inds.size() * sizeof(int) << std::endl;
+            std::cout << "outsize = " << packed_inds.size() << std::endl;
             std::cout << "pred values = " << single_quant_ctr << std::endl;
             std::cout << "adapt values = " << multi_quant_ctr << std::endl;
         };
@@ -228,13 +239,9 @@ namespace SZ {
         virtual void postcompress_data() {
         }
 
-        /*
-         * adaptive flag is (1 << adaptive_bits) and indicates no adaptive quantization occurred
-         * shift is adaptive_bits + 1 to accommodate reserved flag value
-         */
         void adaptive_pack() {
             int pack_value = 0;
-            int shift = adaptive_bits + 1;
+            int shift = adaptive_bits;
             int max_shift = (sizeof(int) * 8) - shift;
             int offset = max_shift;
             for (int i = 0; i < adapt_inds.size(); i++) {
@@ -254,11 +261,10 @@ namespace SZ {
         }
 
         /*
-         * adaptive_flag is (1 << adaptive_bits) and indicates no adaptive quantization occurred
-         * shift is adaptive_bits + 1 to accommodate reserved flag value
+         * no flag to indicate adaptive quantization occurred
          */
         void adaptive_unpack() {
-            int shift = adaptive_bits + 1;
+            int shift = adaptive_bits;
             int max_shift = (sizeof(int) * 8) - shift;
             int bit_check = 0;
             for (int i = 0; i < shift; i++) {
@@ -273,15 +279,17 @@ namespace SZ {
                 }
             }
         }
-       
+
         /*
-         * pack adaptive bits to save space and store losslessly with unpredictable data
-         * this version uses adaptive flag to indicate adaptive quantization occurred
-         * decompressed packed_inds.size() = num_elements
+         * pack adaptive bits to save space and losslessly store with unpredictable data
+         * use value of '1' in quant_inds to indicate adaptive quantization occurred
+         * return true quantization indices (appended) with quant_inds to be huffman encoded
+         * quant_inds.size() = num_elements + # of elts adaptively quantized
          */
         void postcompress_data(std::vector<int> &quant_inds) {
             adaptive_pack();
-
+            quant_inds.insert(quant_inds.end(), actual_inds.begin(), actual_inds.end());
+            
             char path[BUFSIZE];
             const char *envvar = "ADAPTENTROPY";
             if (!getenv(envvar)) {
@@ -293,9 +301,9 @@ namespace SZ {
                 exit(1);
             }
             writefile(path, packed_inds.data(), packed_inds.size());
-        
-        }
 
+        }
+        
         virtual void postdecompress_data() {
         }
 
@@ -304,9 +312,12 @@ namespace SZ {
         virtual void predecompress_data() {};
 
         /*
+         * get true quantization indices of adaptively quantized data from quantization index array
          * unpack adaptive quantization bits
+         * quant_inds.size() should be num_elements + # elts adaptively quantized when passed in
          */
         void predecompress_data(std::vector<int> &quant_inds, size_t num_elements) {
+            copy(quant_inds.begin() + num_elements, quant_inds.end(), back_inserter(actual_inds));
             adaptive_unpack();
         }
         

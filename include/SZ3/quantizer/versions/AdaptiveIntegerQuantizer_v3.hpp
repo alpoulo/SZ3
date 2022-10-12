@@ -182,7 +182,7 @@ namespace SZ {
             c += packed_inds.size() * sizeof(int);
             memcpy(c, unpred.data(), unpred.size() * sizeof(T));
             c += unpred.size() * sizeof(T);
-            std::cout << "outsize = " << packed_inds.size() * sizeof(int) << std::endl;
+            std::cout << "outsize = " << packed_inds.size() << std::endl;
             std::cout << "pred values = " << single_quant_ctr << std::endl;
             std::cout << "adapt values = " << multi_quant_ctr << std::endl;
         };

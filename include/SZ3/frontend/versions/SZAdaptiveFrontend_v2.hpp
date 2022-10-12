@@ -133,7 +133,7 @@ namespace SZ {
 
         int get_radius() const { return quantizer.get_radius(); }
 
-        size_t get_num_elements() const { return num_elements; };
+        size_t get_num_elements() const { return num_elements * 2; };
 
     private:
         Predictor predictor;

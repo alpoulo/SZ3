@@ -78,6 +78,7 @@ namespace SZ {
                     return 0;
                 } else {
                     data = decompressed_data;
+                    pred_ctr++;
                     return quant_index_shifted;
                 }
             } else {
@@ -180,8 +181,10 @@ namespace SZ {
         }
 
 
-        virtual void postcompress_data() {
-        }
+        //virtual void postcompress_data() {
+        //}
+
+        void postcompress_data() { std::cout << "pred values = " << pred_ctr << "\n"; }
 
         void postcompress_data(std::vector<int> &quant_inds) {};
 
@@ -192,7 +195,8 @@ namespace SZ {
 
         virtual void predecompress_data() {};
 
-        void predecompress_data(std::vector<int>, size_t num_elements) {};
+        void predecompress_data(std::vector<int>, size_t num_elements) 
+        {};
 
 
     private:
@@ -202,6 +206,7 @@ namespace SZ {
         double error_bound;
         double error_bound_reciprocal;
         int radius; // quantization interval radius
+        int pred_ctr = 0;
     };
 
 }

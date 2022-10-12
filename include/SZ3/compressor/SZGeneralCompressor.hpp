@@ -11,6 +11,8 @@
 #include "SZ3/def.hpp"
 #include <cstring>
 
+#define BUFSIZE 256
+
 namespace SZ {
     template<class T, uint N, class Frontend, class Encoder, class Lossless>
     class SZGeneralCompressor : public concepts::CompressorInterface<T> {
@@ -31,6 +33,19 @@ namespace SZ {
 
             std::vector<int> quant_inds = frontend.compress(data);
 
+            char path[BUFSIZE];
+            const char *envvar = "BASELINEENTROPY";
+
+            if (!getenv(envvar)) {
+                fprintf(stderr, "the environment variable %s was not found!\n", envvar);
+                exit(1);
+            }
+            if (snprintf(path, BUFSIZE, "%s", getenv(envvar)) >= BUFSIZE) {
+                fprintf(stderr, "BUFSIZE of %d was too small! aborting.\n", BUFSIZE);
+            }
+
+            writefile(path, quant_inds.data(), quant_inds.size());
+
             encoder.preprocess_encode(quant_inds, 0);
             size_t bufferSize = 1.2 * (frontend.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
 
@@ -39,13 +54,20 @@ namespace SZ {
 
             frontend.save(buffer_pos);
 
+            size_t outsize = 0;
+
             encoder.save(buffer_pos);
-            encoder.encode(quant_inds, buffer_pos);
+            outsize = encoder.encode(quant_inds, buffer_pos);
             encoder.postprocess_encode();
 
             assert(buffer_pos - buffer < bufferSize);
 
+            std::cout << "encoderOutsize = " << outsize << "\n";
+
             uchar *lossless_data = lossless.compress(buffer, buffer_pos - buffer, compressed_size);
+            std::cout << "bufferSizeEst = " << bufferSize << "\n";
+            std::cout << "bufferSize = " << buffer_pos - buffer << "\n";
+            std::cout << "compressedBufferSize = " << compressed_size << "\n";
             lossless.postcompress_data(buffer);
 
             return lossless_data;
