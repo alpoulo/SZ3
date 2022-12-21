@@ -8,6 +8,7 @@
 #include "SZ3/def.hpp"
 #include "SZ3/predictor/Predictor.hpp"
 #include "SZ3/predictor/LorenzoPredictor.hpp"
+#include "SZ3/predictor/AdaptiveRegressionPredictor.hpp"
 #include "SZ3/quantizer/Quantizer.hpp"
 #include "SZ3/utils/Iterator.hpp"
 #include "SZ3/utils/Config.hpp"
@@ -59,12 +60,15 @@ namespace SZ {
             }
 
             predictor.postcompress_data(block_range->begin());
-            quantizer.postcompress_data();
+            //quantizer.postcompress_data();
+            quantizer.postcompress_data(quant_inds);
             return quant_inds;
         }
 
         T *decompress(std::vector<int> &quant_inds, T *dec_data) {
-
+            
+            quantizer.predecompress_data(quant_inds, num_elements);
+            
             int const *quant_inds_pos = (int const *) quant_inds.data();
             std::array<size_t, N> intra_block_dims;
 //            auto dec_data = new T[num_elements];
@@ -75,7 +79,7 @@ namespace SZ {
                     dec_data, std::begin(global_dimensions), std::end(global_dimensions), 1, 0);
 
             predictor.predecompress_data(block_range->begin());
-            quantizer.predecompress_data();
+//            quantizer.predecompress_data();
 
             for (auto block = block_range->begin(); block != block_range->end(); ++block) {
 
@@ -130,7 +134,8 @@ namespace SZ {
 
         int get_radius() const { return quantizer.get_radius(); }
 
-        size_t get_num_elements() const { return num_elements; };
+        //size_t get_num_elements() const { return num_elements; };
+        size_t get_num_elements() const { return quantizer.get_num_elements(num_elements); };
 
     private:
         Predictor predictor;

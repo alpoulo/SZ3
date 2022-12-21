@@ -381,6 +381,8 @@ namespace SZ {
 
 //            printf("%lu %lu\n", reg_count, block_cnt);
 
+            quantizer.postcompress_data();
+
             return type;
         }
 

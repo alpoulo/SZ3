@@ -118,6 +118,9 @@ namespace SZ {
             blockSize = cfg.GetInteger("AlgoSettings", "BlockSize", blockSize);
             quantbinCnt = cfg.GetInteger("AlgoSettings", "QuantizationBinTotal", quantbinCnt);
             adaptive_bits = cfg.GetInteger("AlgoSettings", "AdaptiveBits", adaptive_bits);
+            adaptive_quantization = cfg.GetBoolean("AlgoSettings", "AdaptiveQuantization", adaptive_quantization);
+            prediction_bits = cfg.GetInteger("AlgoSettings", "PredictionBits", prediction_bits);
+            adaptive_regression = cfg.GetBoolean("AlgoSettings", "AdaptiveRegression", adaptive_regression);
 
 
         }
@@ -146,6 +149,9 @@ namespace SZ {
             write(pred_dim, c);
             write(openmp, c);
             write(adaptive_bits, c);
+            write(prediction_bits, c);
+            write(adaptive_regression, c);
+            write(adaptive_quantization, c);
         };
 
         void load(const unsigned char *&c) {
@@ -172,6 +178,9 @@ namespace SZ {
             read(pred_dim, c);
             read(openmp, c);
             read(adaptive_bits, c);
+            read(prediction_bits, c);
+            read(adaptive_regression, c);
+            read(adaptive_quantization, c);
         }
 
         void print() {
@@ -179,7 +188,7 @@ namespace SZ {
         }
 
         static size_t size_est() {
-            return sizeof(size_t) * 5 + sizeof(double) * 4 + sizeof(bool) * 5 + sizeof(uint8_t) * 6 + sizeof(int) * 6 + 50; //50 is for redundancy
+            return sizeof(size_t) * 5 + sizeof(double) * 4 + sizeof(bool) * 7 + sizeof(uint8_t) * 6 + sizeof(int) * 6 + 50; //50 is for redundancy
         }
 
         char N;
@@ -206,6 +215,9 @@ namespace SZ {
         int stride; //not used now
         int pred_dim; // not used now
         int adaptive_bits = 0;
+        int prediction_bits = 0;
+        bool adaptive_regression = false;
+        bool adaptive_quantization = false;
 
     };
 

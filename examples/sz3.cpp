@@ -53,6 +53,7 @@ void usage() {
     printf("		-S <PSNR>: specifying PSNR\n");
     printf("		-N <normErr>: specifying normErr\n");
     printf("	-q <adaptive quantization bits> : number of adaptive quantization bits to use\n");
+    printf("    -Q: <prediction quantization bits> : number of adaptive quantization bits to use\n"); 
     printf("* dimensions: \n");
     printf("	-1 <nx> : dimension for 1D data such as data[nx]\n");
     printf("	-2 <nx> <ny> : dimensions for 2D data such as data[ny][nx]\n");
@@ -128,7 +129,7 @@ void compress(char *inPath, char *cmpPath, SZ::Config conf) {
     T *data = new T[conf.num];
     SZ::readfile<T>(inPath, conf.num, data);
 
-    size_t outSize;
+    size_t outSize = 0;
     SZ::Timer timer(true);
     char *bytes = SZ_compress<T>(conf, data, outSize);
     double compress_time = timer.stop();
@@ -187,6 +188,7 @@ void decompress(char *inPath, char *cmpPath, char *decPath,
 }
 
 int main(int argc, char *argv[]) {
+
     bool binaryOutput = true;
     int printCmpResults = 0;
     bool compression = false;
@@ -206,8 +208,10 @@ int main(int argc, char *argv[]) {
     char *psnrErrorBound = nullptr;
     char *normErrorBound = nullptr;
 
-    bool adaptive = false;
+    bool adaptive_quantization = false;
     int adaptive_bits = 0;
+    bool adaptive_regression = false;
+    int prediction_bits = 0;
 
     bool sz2mode = false;
 
@@ -366,7 +370,15 @@ int main(int argc, char *argv[]) {
                     usage();
                 }
                 adaptive_bits = atoi(argv[i]);
-                adaptive = true;
+                adaptive_quantization = true;
+                break;
+            case 'Q':
+                if (++i == argc) {
+                    usage();
+                }
+                prediction_bits = atoi(argv[i]);
+                adaptive_regression = true;
+                adaptive_quantization = true;
                 break;
             default:
                 usage();
@@ -465,6 +477,13 @@ int main(int argc, char *argv[]) {
 
     if (adaptive_bits) {
         conf.adaptive_bits = adaptive_bits;
+        conf.adaptive_quantization = true;
+    }
+
+    if (adaptive_regression) {
+        conf.prediction_bits = prediction_bits;
+        conf.adaptive_regression = true;
+        conf.adaptive_quantization = true;
     }
 
 

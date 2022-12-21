@@ -34,7 +34,7 @@ namespace SZ {
             std::vector<int> quant_inds = frontend.compress(data);
 
             char path[BUFSIZE];
-            const char *envvar = "BASELINEENTROPY";
+            const char *envvar = "QUANTENTROPY";
 
             if (!getenv(envvar)) {
                 fprintf(stderr, "the environment variable %s was not found!\n", envvar);
@@ -42,9 +42,11 @@ namespace SZ {
             }
             if (snprintf(path, BUFSIZE, "%s", getenv(envvar)) >= BUFSIZE) {
                 fprintf(stderr, "BUFSIZE of %d was too small! aborting.\n", BUFSIZE);
+                fprintf(stderr, "path: %s\n", path);
+                exit(1);
             }
-
             writefile(path, quant_inds.data(), quant_inds.size());
+
 
             encoder.preprocess_encode(quant_inds, 0);
             size_t bufferSize = 1.2 * (frontend.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());
@@ -62,11 +64,12 @@ namespace SZ {
 
             assert(buffer_pos - buffer < bufferSize);
 
-            std::cout << "encoderOutsize = " << outsize << "\n";
+            std::cout << "huffmanEncoderOutsize = " << outsize << "\n";
 
+            //compute entropy of data
+            //dump buffer to file
             uchar *lossless_data = lossless.compress(buffer, buffer_pos - buffer, compressed_size);
-            std::cout << "bufferSizeEst = " << bufferSize << "\n";
-            std::cout << "bufferSize = " << buffer_pos - buffer << "\n";
+            std::cout << "uncompressedBufferSize = " << buffer_pos - buffer << "\n";
             std::cout << "compressedBufferSize = " << compressed_size << "\n";
             lossless.postcompress_data(buffer);
 

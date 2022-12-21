@@ -13,7 +13,7 @@
 #include "SZ3/utils/FileUtil.hpp"
 
 #define BUFSIZE 256
-
+//version 5
 namespace SZ {
 
     template<class T>
@@ -29,13 +29,29 @@ namespace SZ {
             assert(eb != 0);
             set_max_error(eb);
             adaptive_flag = 1 << ab;
+        }
 
-            hist = (int *)malloc (sizeof (int) * (adaptive_flag + 1));
-            memset(hist,0,sizeof(int) * adaptive_flag + 1);
+        AdaptiveLinearQuantizer(double eb, int ab, bool hist_flag, int r = 32768) : error_bound(eb),
+                                                    error_bound_reciprocal(1.0 / eb),
+                                                    radius(r), 
+                                                    adaptive_bits(ab) {
+            assert(eb != 0);
+            this->hist_flag = 1;
+            set_max_error(eb);
+            adaptive_flag = 1 << ab;
+            hist_size = 2 * radius;
+            this->hist.resize(hist_size);
+            std::fill(this->hist.begin(), this->hist.end(), 0);
+
+            adapthist_size = adaptive_flag + 1;
+            adapthist = (int *)malloc(sizeof(int) * adapthist_size);
+            memset(adapthist,0, sizeof (int) * adapthist_size);
         }
 
         int get_radius() const { return radius; }
 
+        size_t get_num_elements(size_t num_elements) const { return num_elements; }
+        
         double get_eb() const { return error_bound; }
 
         void set_eb(double eb) {
@@ -58,19 +74,67 @@ namespace SZ {
             }
         }
 
-        size_t get_num_adaptive() const { return actual_adapt_ctr; }
+        size_t get_num_adaptive() const { return multi_quant_ctr; }
 
         std::vector<int> get_adapt_inds() { return adapt_inds; }
+
+        void update_hist(int quant_index) {
+            if (hist_flag) {
+                this->hist[quant_index]++;
+            }
+        }
+
+        void update_adapthist(int quant_index) {
+            if (hist_flag) {
+                this->adapthist[quant_index]++;
+            }
+        }
+
+        int quantize(T data, T pred) {
+            T diff = data - pred;
+            int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
+            if ((quant_index < this->radius * 2) && (quant_index >= 0)) {
+                quant_index >>= 1;
+                int half_index = quant_index;
+                quant_index <<= 1;
+                int quant_index_shifted;
+                if (diff < 0) {
+                    quant_index = -quant_index;
+                    quant_index_shifted = this->radius - half_index;
+                } else {
+                    quant_index_shifted = this->radius + half_index;
+                }
+                T decompressed_data = pred + quant_index * this->error_bound;
+                if (fabs(decompressed_data - data) > this->error_bound) {
+                    update_hist(0);
+                    return 0;
+                } else {
+                    single_quant_ctr++;
+                    if (fabs(decompressed_data - data) < this->max_error) {
+                        // adaptive flag indicates no adaptive quantization occurred
+                        adapt_inds.push_back(adaptive_flag);
+                    } else {
+                        multi_quant_ctr++;
+                        adaptive_quantize_encode(data, decompressed_data);
+                    }
+                    update_hist(quant_index_shifted);
+                    // keep all original quantization bins
+                    return quant_index_shifted;
+                }
+            } else {
+                update_hist(0);
+                return 0;
+            }
+        }
 
         /*
          * quantize data with a prediction value, return the quantization index and the decompressed data
          * uses value of '1' in quantization array to indicate adaptive quantization has occurred
          */
         int quantize_and_overwrite(T &data, T pred) {
-            //std::cout << data << "\t\t";
             T diff = data - pred;
             int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
-            if (quant_index < this->radius * 2) {
+            if ((quant_index < this->radius * 2) && (quant_index >= 0)) {
                 quant_index >>= 1;
                 int half_index = quant_index;
                 quant_index <<= 1;
@@ -84,6 +148,7 @@ namespace SZ {
                 T decompressed_data = pred + quant_index * this->error_bound;
                 if (fabs(decompressed_data - data) > this->error_bound) {
                     unpred.push_back(data);
+                    update_hist(0);
                     return 0;
                 } else {
                     single_quant_ctr++;
@@ -91,21 +156,86 @@ namespace SZ {
                         data = decompressed_data;
                         // adaptive flag indicates no adaptive quantization occurred
                         adapt_inds.push_back(adaptive_flag);
-                        hist[adaptive_flag]++;
+                        update_adapthist(adaptive_flag);
                     } else {
                         multi_quant_ctr++;
-                        adaptive_quantize_encode(data, decompressed_data);
+                        adaptive_quantize_encode_and_overwrite(data, decompressed_data);
                     }
                     // keep all original quantization bins
+                    update_hist(quant_index_shifted);
                     return quant_index_shifted;
                 }
             } else {
                 unpred.push_back(data);
+                update_hist(0);
                 return 0;
             }
         }
 
-        void adaptive_quantize_encode(T &data, T decompressed_data) {
+        /*
+         * quantize data with a prediction value, return the quantization index and the decompressed data
+         * uses value of '1' in quantization array to indicate adaptive quantization has occurred
+         */
+        int quantize_and_overwrite(T ori, T pred, T &dest) {
+            T diff = ori - pred;
+            int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
+            if ((quant_index < this->radius * 2) && (quant_index >= 0)) {
+                quant_index >>= 1;
+                int half_index = quant_index;
+                quant_index <<= 1;
+                int quant_index_shifted;
+                if (diff < 0) {
+                    quant_index = -quant_index;
+                    quant_index_shifted = this->radius - half_index;
+                } else {
+                    quant_index_shifted = this->radius + half_index;
+                }
+                T decompressed_data = pred + quant_index * this->error_bound;
+                if (fabs(decompressed_data - ori) > this->error_bound) {
+                    unpred.push_back(ori);
+                    dest = ori;
+                    update_hist(0);
+                    return 0;
+                } else {
+                    single_quant_ctr++;
+                    if (fabs(decompressed_data - ori) < this->max_error) {
+                        dest = decompressed_data;
+                        // adaptive flag indicates no adaptive quantization occurred
+                        adapt_inds.push_back(adaptive_flag);
+                        update_adapthist(adaptive_flag);
+                    } else {
+                        multi_quant_ctr++;
+                        adaptive_quantize_encode_and_overwrite(ori, decompressed_data, dest);
+                    }
+                    // keep all original quantization bins
+                    update_hist(quant_index_shifted);
+                    return quant_index_shifted;
+                }
+            } else {
+                unpred.push_back(ori);
+                dest = ori;
+                update_hist(0);
+                return 0;
+            }
+        }
+
+        void adaptive_quantize_encode(T data, T decompressed_data) {
+            double precision = this->error_bound;
+            int adaptive_index = 0;
+            for (int i = 0; i < adaptive_bits; i++) {
+                precision /= 2;
+                if ((data - decompressed_data) > 0) {
+                    adaptive_index ^= (1 << i);
+                    decompressed_data += precision;
+                } else {
+                    decompressed_data -= precision;
+                }
+            }
+            update_adapthist(adaptive_index);
+            adapt_inds.push_back(adaptive_index);
+        }
+
+        void adaptive_quantize_encode_and_overwrite(T &data, T decompressed_data) {
             double precision = this->error_bound;
             int adaptive_index = 0;
             for (int i = 0; i < adaptive_bits; i++) {
@@ -118,9 +248,25 @@ namespace SZ {
                 }
             }
             data = decompressed_data;
-            actual_adapt_ctr++;
             adapt_inds.push_back(adaptive_index);
-            hist[adaptive_index]++;
+            update_adapthist(adaptive_index);
+        }
+
+        void adaptive_quantize_encode_and_overwrite(T ori, T decompressed_data, T &dest) {
+            double precision = this->error_bound;
+            int adaptive_index = 0;
+            for (int i = 0; i < adaptive_bits; i++) {
+                precision /= 2;
+                if ((ori - decompressed_data) > 0) {
+                    adaptive_index ^= (1 << i);
+                    decompressed_data += precision;
+                } else {
+                    decompressed_data -= precision;
+                }
+            }
+            dest = decompressed_data;
+            update_adapthist(adaptive_index);
+            adapt_inds.push_back(adaptive_index);
         }
 
         T adaptive_quantize_decode(T data, int adapt_index) {
@@ -161,9 +307,6 @@ namespace SZ {
         }
 
         T recover_unpred() {
-            //T var = unpred[index++];
-            //std::cout << var << "\n";
-            //return var;
             return unpred[index++];
         }
 
@@ -194,27 +337,52 @@ namespace SZ {
             size_t outsize = 0;
 
             if (!adapt_inds.empty()) {
+                //HuffmanEncoder<int> encoder = HuffmanEncoder<int>();
                 HuffmanEncoder<int> encoder = HuffmanEncoder<int>();
                 encoder.preprocess_encode(adapt_inds, 0);
                 encoder.save(c);
                 outsize = encoder.encode(adapt_inds, c);
                 encoder.postprocess_encode();
             }
-            //print_hist();
-            std::cout << "outsize = " << outsize << std::endl;
+            std::cout << "quantHuffmanOutsize = " << outsize << std::endl;
             std::cout << "pred values = " << single_quant_ctr << std::endl;
             std::cout << "adapt values = " << multi_quant_ctr << std::endl;
         };
 
-        void print_hist() const {
-            std::cout << "histogram = ";
-            
-            for (int i = 0; i < (adaptive_flag + 1); i++) {
-                std::cout << hist[i] << ",";
+        void save(unsigned char *&c, int indicator) const {
+            uchar *buffer_pos = c;
+
+            // std::string serialized(sizeof(uint8_t) + sizeof(T) + sizeof(int),0);
+            c[0] = 0b00000011;
+            c += 1;
+            *reinterpret_cast<double *>(c) = this->error_bound;
+            c += sizeof(double);
+            *reinterpret_cast<int *>(c) = this->radius;
+            c += sizeof(int);
+            *reinterpret_cast<int *>(c) = this->adaptive_bits;
+            c += sizeof(int);
+            *reinterpret_cast<int *>(c) = adapt_inds.size();
+            c += sizeof(int);
+            *reinterpret_cast<size_t *>(c) = unpred.size();
+            c += sizeof(size_t);
+            memcpy(c, unpred.data(), unpred.size() * sizeof(T));
+            c += unpred.size() * sizeof(T);
+
+            size_t outsize = 0;
+
+            print_bins(indicator);
+            if (!adapt_inds.empty()) {
+                //HuffmanEncoder<int> encoder = HuffmanEncoder<int>();
+                HuffmanEncoder<int> encoder = HuffmanEncoder<int>();
+                encoder.preprocess_encode(adapt_inds, 0);
+                encoder.save(c);
+                outsize = encoder.encode(adapt_inds, c);
+                encoder.postprocess_encode();
             }
-            std::cout << std::endl;
-            free(hist);
-        }
+            std::cout << "quantHuffmanOutsize = " << outsize << std::endl;
+            std::cout << "pred values = " << single_quant_ctr << std::endl;
+            std::cout << "adapt values = " << multi_quant_ctr << std::endl;
+        };
 
         void load(const unsigned char *&c, size_t &remaining_length) {
             //assert(remaining_length > (sizeof(uint8_t) + sizeof(T) + sizeof(int)));
@@ -238,6 +406,7 @@ namespace SZ {
             c += unpred_size * sizeof(T);
 
             if(num_elements != 0) {
+                //HuffmanEncoder<int> decoder = HuffmanEncoder<int>();
                 HuffmanEncoder<int> decoder = HuffmanEncoder<int>();
                 decoder.load(c, remaining_length);
                 auto adapt_inds = decoder.decode(c, num_elements);
@@ -257,33 +426,122 @@ namespace SZ {
             printf("[AdaptiveIntegerQuantizer] error_bound = %.8G, radius = %d, unpred = %lu\n", error_bound, radius, unpred.size());
         }
 
-        void clear() {
-            unpred.clear();
-            adapt_inds.clear();
-            index = 0;
+        void print_hist() const {
+            char path[BUFSIZE];
+            const char *envvar = "QUANTHISTOGRAM";
+            if (!getenv(envvar)) {
+                fprintf(stderr, "the environment variable %s was not found!\n", envvar);
+                return;
+            }
+            if (snprintf(path, BUFSIZE, "%s", getenv(envvar)) >= BUFSIZE) {
+                fprintf(stderr, "BUFSIZE of %d was too small! aborting.\n", BUFSIZE);
+                return;
+            }
+            FILE *f = fopen(path, "w");
+            if (f == NULL) {
+                fprintf(stderr, "unable to open FILE %s for writing!\n", path);
+                return;
+            }
+            //fprintf(stderr, "hist_size: %d\n", hist_size);
+            //fprintf(stderr, "fpath: %s\n", path);
+            int i;
+            for (int i = 0; i < this->hist_size; i++) {
+                fprintf(f, "%d ", hist[i]);
+            }
+            //writefile(path, adapt_inds.data(), adapt_inds.size());
+            fclose(f);
+            //free(hist);
         }
 
-        virtual void postcompress_data() {
+        void print_adapthist() const {
+            char path[BUFSIZE];
+            const char *envvar = "ADAPTHISTOGRAM";
+            if (!getenv(envvar)) {
+                fprintf(stderr, "the environment variable %s was not found!\n", envvar);
+                return;
+            }
+            if (snprintf(path, BUFSIZE, "%s", getenv(envvar)) >= BUFSIZE) {
+                fprintf(stderr, "BUFSIZE of %d was too small! aborting.\n", BUFSIZE);
+                return;
+            }
+            FILE *f = fopen(path, "w");
+            if (f == NULL) {
+                fprintf(stderr, "unable to open FILE %s for writing!\n", path);
+                return;
+            }
+            //fprintf(stderr, "hist_size: %d\n", hist_size);
+            //fprintf(stderr, "fpath: %s\n", path);
+            int i;
+            for (int i = 0; i < this->adapthist_size; i++) {
+                fprintf(f, "%d ", adapthist[i]);
+            }
+            //writefile(path, adapt_inds.data(), adapt_inds.size());
+            fclose(f);
+            free(adapthist);
         }
 
-        /*
-         * pack adaptive bits to save space and losslessly store with unpredictable data
-         * use value of '1' in quant_inds to indicate adaptive quantization occurred
-         * return true quantization indices (appended) with quant_inds to be huffman encoded
-         * quant_inds.size() = num_elements + # of elts adaptively quantized
-         */
-        void postcompress_data(std::vector<int> &quant_inds) {
+        void print_bins() const {
             char path[BUFSIZE];
             const char *envvar = "ADAPTENTROPY";
             if (!getenv(envvar)) {
                 fprintf(stderr, "the environment variable %s was not found!\n", envvar);
-                exit(1);
+                return;
             }
             if (snprintf(path, BUFSIZE, "%s", getenv(envvar)) >= BUFSIZE) {
                 fprintf(stderr, "BUFSIZE of %d was too small! aborting.\n", BUFSIZE);
-                exit(1);
+                return;
             }
             writefile(path, adapt_inds.data(), adapt_inds.size());
+        }
+
+        void print_bins(int indicator) const {
+            char path[BUFSIZE];
+            if (indicator == 0) {
+                const char *envvar = "ADAPTENTROPYINDEPENDENT";
+                if (!getenv(envvar)) {
+                    fprintf(stderr, "the environment variable %s was not found!\n", envvar);
+                    return;
+                }
+                if (snprintf(path, BUFSIZE, "%s", getenv(envvar)) >= BUFSIZE) {
+                    fprintf(stderr, "BUFSIZE of %d was too small! aborting.\n", BUFSIZE);
+                    return;
+                }
+                writefile(path, adapt_inds.data(), adapt_inds.size());
+            } else { 
+                const char *envvar = "ADAPTENTROPYLINER";
+                if (!getenv(envvar)) {
+                    fprintf(stderr, "the environment variable %s was not found!\n", envvar);
+                    return;
+                }
+                if (snprintf(path, BUFSIZE, "%s", getenv(envvar)) >= BUFSIZE) {
+                    fprintf(stderr, "BUFSIZE of %d was too small! aborting.\n", BUFSIZE);
+                    return;
+                }
+                writefile(path, adapt_inds.data(), adapt_inds.size());
+            } 
+        }
+
+        void clear() {
+            unpred.clear();
+            adapt_inds.clear();
+            hist.clear();
+            index = 0;
+        }
+
+        void postcompress_data() {
+            if (hist_flag) {
+                print_hist();
+                print_adapthist();
+                print_bins();
+            }
+        }
+
+        void postcompress_data(std::vector<int> &quant_inds) {
+            if (hist_flag) {
+                print_hist();
+                print_adapthist();
+                print_bins();
+            }
         }
         
         virtual void postdecompress_data() {
@@ -293,37 +551,7 @@ namespace SZ {
 
         virtual void predecompress_data() {};
 
-        /*
-         * get true quantization indices of adaptively quantized data from quantization index array
-         * unpack adaptive quantization bits
-         * quant_inds.size() should be num_elements + # elts adaptively quantized when passed in
-         */
         void predecompress_data(std::vector<int> &quant_inds, size_t num_elements) {
-        }
-
-        int quantize(T data, T pred) {
-            T diff = data - pred;
-            int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
-            if (quant_index < this->radius * 2) {
-                quant_index >>= 1;
-                int half_index = quant_index;
-                quant_index <<= 1;
-                int quant_index_shifted;
-                if (diff < 0) {
-                    quant_index = -quant_index;
-                    quant_index_shifted = this->radius - half_index;
-                } else {
-                    quant_index_shifted = this->radius + half_index;
-                }
-                T decompressed_data = pred + quant_index * this->error_bound;
-                if (fabs(decompressed_data - data) > this->error_bound) {
-                    return 0;
-                } else {
-                    return quant_index_shifted;
-                }
-            } else {
-                return 0;
-            }
         }
 
     private:
@@ -338,13 +566,16 @@ namespace SZ {
         int adaptive_flag = 0;
         double max_error;
         size_t adapt_ctr = 0; // used in decompression only
-        int actual_adapt_ctr = 0;
         int packed_size = 0;
         int actual_ctr = 0;
         int single_quant_ctr = 0;
         int multi_quant_ctr = 0;
-        int *hist;
-
+        //int *hist;
+        std::vector<int> hist;
+        int hist_size;
+        int hist_flag;
+        int *adapthist;
+        int adapthist_size;
     };
 
 }

@@ -13,7 +13,7 @@
 #include "SZ3/utils/FileUtil.hpp"
 
 #define BUFSIZE 256
-
+//version 4
 namespace SZ {
 
     template<class T>
@@ -31,6 +31,8 @@ namespace SZ {
         }
 
         int get_radius() const { return radius; }
+
+        size_t get_num_elements(size_t num_elements) const { return num_elements + multi_quant_ctr; }
 
         double get_eb() const { return error_bound; }
 
@@ -54,9 +56,40 @@ namespace SZ {
             }
         }
 
-        size_t get_num_adaptive() const { return actual_adapt_ctr; }
+        size_t get_num_adaptive() const { return multi_quant_ctr; }
 
         std::vector<int> get_adapt_inds() { return adapt_inds; }
+
+        int quantize(T data, T pred) {
+            T diff = data - pred;
+            int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
+            if (quant_index < this->radius * 2) {
+                quant_index >>= 1;
+                int half_index = quant_index;
+                quant_index <<= 1;
+                int quant_index_shifted;
+                if (diff < 0) {
+                    quant_index = -quant_index;
+                    quant_index_shifted = this->radius - half_index;
+                } else {
+                    quant_index_shifted = this->radius + half_index;
+                }
+                T decompressed_data = pred + quant_index * this->error_bound;
+                if (fabs(decompressed_data - data) > this->error_bound) {
+                    return 0;
+                } else {
+                    if (fabs(decompressed_data - data) < this->max_error) {
+                        adapt_inds.push_back(adaptive_flag);
+                    } else {
+                        multi_quant_ctr++;
+                        adaptive_quantize_encode(data, decompressed_data);
+                    }
+                    return quant_index_shifted;
+                }
+            } else {
+                return 0;
+            }
+        }
 
         /*
          * quantize data with a prediction value, return the quantization index and the decompressed data
@@ -92,7 +125,7 @@ namespace SZ {
                     } else {
                         multi_quant_ctr++;
                         actual_inds.push_back(quant_index_shifted);
-                        adaptive_quantize_encode(data, decompressed_data);
+                        adaptive_quantize_encode_and_overwrite(data, decompressed_data);
                         // save reserved value to indicate adaptive quantization occurred
                         return 1;
                     }
@@ -103,7 +136,52 @@ namespace SZ {
             }
         }
 
-        void adaptive_quantize_encode(T &data, T decompressed_data) {
+        /*
+         * quantize data with a prediction value, return the quantization index and the decompressed data
+         * uses value of '1' in quantization array to indicate adaptive quantization has occurred
+         */
+        int quantize_and_overwrite(T &ori, T pred, T &dest) {
+            T diff = ori - pred;
+            int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
+            if (quant_index < this->radius * 2) {
+                quant_index >>= 1;
+                int half_index = quant_index;
+                quant_index <<= 1;
+                int quant_index_shifted;
+                if (diff < 0) {
+                    quant_index = -quant_index;
+                    quant_index_shifted = this->radius - half_index;
+                } else {
+                    quant_index_shifted = this->radius + half_index;
+                }
+                T decompressed_data = pred + quant_index * this->error_bound;
+                if (fabs(decompressed_data - data) > this->error_bound) {
+                    unpred.push_back(data);
+                    return 0;
+                } else if (quant_index_shifted == 1) {
+                    // value of '1' is reserved
+                    unpred.push_back(ori);
+                    return 0;
+                } else {
+                    single_quant_ctr++;
+                    if (fabs(decompressed_data - ori) < this->max_error) {
+                        dest = decompressed_data;
+                        return quant_index_shifted;
+                    } else {
+                        multi_quant_ctr++;
+                        actual_inds.push_back(quant_index_shifted);
+                        adaptive_quantize_encode_and_overwrite(ori, decompressed_data, dest);
+                        // save reserved value to indicate adaptive quantization occurred
+                        return 1;
+                    }
+                }
+            } else {
+                unpred.push_back(ori);
+                return 0;
+            }
+        }
+
+        void adaptive_quantize_encode(T data, T decompressed_data) {
             double precision = this->error_bound;
             int adaptive_index = 0;
             for (int i = 0; i < adaptive_bits; i++) {
@@ -115,9 +193,38 @@ namespace SZ {
                     decompressed_data -= precision;
                 }
             }
-            //actual_adapt_ctr++;
+            adapt_inds.push_back(adaptive_index);
+        }
+
+        void adaptive_quantize_encode_and_overwrite(T &data, T decompressed_data) {
+            double precision = this->error_bound;
+            int adaptive_index = 0;
+            for (int i = 0; i < adaptive_bits; i++) {
+                precision /= 2;
+                if ((data - decompressed_data) > 0) {
+                    adaptive_index ^= (1 << i);
+                    decompressed_data += precision;
+                } else {
+                    decompressed_data -= precision;
+                }
+            }
             data = decompressed_data;
-            actual_adapt_ctr++;
+            adapt_inds.push_back(adaptive_index);
+        }
+
+        void adaptive_quantize_encode_and_overwrite(T ori, T decompressed_data, T &dest) {
+            double precision = this->error_bound;
+            int adaptive_index = 0;
+            for (int i = 0; i < adaptive_bits; i++) {
+                precision /= 2;
+                if ((ori - decompressed_data) > 0) {
+                    adaptive_index ^= (1 << i);
+                    decompressed_data += precision;
+                } else {
+                    decompressed_data -= precision;
+                }
+            }
+            dest = decompressed_data;
             adapt_inds.push_back(adaptive_index);
         }
 
@@ -179,7 +286,7 @@ namespace SZ {
             c += sizeof(int);
             *reinterpret_cast<int *>(c) = this->adaptive_bits;
             c += sizeof(int);
-            *reinterpret_cast<int *>(c) = this->actual_adapt_ctr;
+            *reinterpret_cast<int *>(c) = this->multi_quant_ctr;
             c += sizeof(int);
             *reinterpret_cast<size_t *>(c) = unpred.size();
             c += sizeof(size_t);
@@ -214,20 +321,20 @@ namespace SZ {
             c += sizeof(int);
             this->adaptive_bits = *reinterpret_cast<const int *>(c);
             c += sizeof(int);
-            this->actual_adapt_ctr = *reinterpret_cast<const int *>(c);
+            this->multi_quant_ctr = *reinterpret_cast<const int *>(c);
             c += sizeof(int);
             size_t unpred_size = *reinterpret_cast<const size_t *>(c);
             c += sizeof(size_t);
             this->unpred = std::vector<T>(reinterpret_cast<const T *>(c), reinterpret_cast<const T *>(c) + unpred_size);
             c += unpred_size * sizeof(T);
 
-            if(actual_adapt_ctr != 0) {
+            if(multi_quant_ctr != 0) {
                 HuffmanEncoder<int> decoder = HuffmanEncoder<int>();
                 decoder.load(c, remaining_length);
-                auto adapt_inds = decoder.decode(c, actual_adapt_ctr);
+                auto adapt_inds = decoder.decode(c, multi_quant_ctr);
                 this->adapt_inds = adapt_inds;
                 decoder.postprocess_decode();
-                remaining_length -= actual_adapt_ctr * sizeof(int);
+                remaining_length -= multi_quant_ctr * sizeof(int);
             }
             
             // std::cout << "loading: eb = " << this->error_bound << ", unpred_num = "  << unpred.size() << std::endl;
@@ -287,31 +394,6 @@ namespace SZ {
             copy(quant_inds.begin() + num_elements, quant_inds.end(), back_inserter(actual_inds));
         }
 
-        int quantize(T data, T pred) {
-            T diff = data - pred;
-            int quant_index = (int) (fabs(diff) * this->error_bound_reciprocal) + 1;
-            if (quant_index < this->radius * 2) {
-                quant_index >>= 1;
-                int half_index = quant_index;
-                quant_index <<= 1;
-                int quant_index_shifted;
-                if (diff < 0) {
-                    quant_index = -quant_index;
-                    quant_index_shifted = this->radius - half_index;
-                } else {
-                    quant_index_shifted = this->radius + half_index;
-                }
-                T decompressed_data = pred + quant_index * this->error_bound;
-                if (fabs(decompressed_data - data) > this->error_bound) {
-                    return 0;
-                } else {
-                    return quant_index_shifted;
-                }
-            } else {
-                return 0;
-            }
-        }
-
     private:
         std::vector<T> unpred;
         size_t index = 0; // used in decompression only
@@ -324,11 +406,10 @@ namespace SZ {
         int adaptive_bits;
         double max_error;
         size_t adapt_ctr = 0; // used in decompression only
-        int actual_adapt_ctr = 0;
+        int multi_quant_ctr = 0;
         int packed_size = 0;
         int actual_ctr = 0;
         int single_quant_ctr = 0;
-        int multi_quant_ctr = 0;
     };
 
 }

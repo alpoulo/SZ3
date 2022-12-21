@@ -82,14 +82,16 @@ char *SZ_compress_LorenzoReg(SZ::Config &conf, T *data, size_t &outSize) {
     SZ::calAbsErrorBound(conf, data);
 
     char *cmpData;
-    auto quantizer = SZ::LinearQuantizer<T>(conf.absErrorBound, conf.quantbinCnt / 2);
+    auto quantizer = SZ::LinearQuantizer<T>(conf.absErrorBound, 1, conf.quantbinCnt / 2);
+
     if (N == 3 && !conf.regression2) {
         // use fast version for 3D
-        auto sz = SZ::make_sz_general_compressor<T, N>(SZ::make_sz_fast_frontend<T, N>(conf, quantizer), SZ::HuffmanEncoder<int>(),
-                                                       SZ::Lossless_zstd());
+        auto sz = SZ::make_sz_general_compressor<T, N>(SZ::make_sz_fast_frontend<T, N>(conf, quantizer), 
+                                                        SZ::HuffmanEncoder<int>(), SZ::Lossless_zstd());
         cmpData = (char *) sz->compress(conf, data, outSize);
     } else {
-        auto sz = make_lorenzo_regression_compressor<T, N>(conf, quantizer, SZ::HuffmanEncoder<int>(), SZ::Lossless_zstd());
+        auto sz = make_lorenzo_regression_compressor<T, N>(conf, quantizer, SZ::HuffmanEncoder<int>(), 
+                                                        SZ::Lossless_zstd());
         cmpData = (char *) sz->compress(conf, data, outSize);
     }
     return cmpData;
