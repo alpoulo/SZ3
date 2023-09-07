@@ -21,50 +21,58 @@ void usage() {
     printf("Usage: sz3 <options>\n");
     printf("Options:\n");
     printf("* general options:\n");
-    printf("	-h: print the help information\n");
-    printf("	-h2: print the help information for SZ2 style command line\n");
-    printf("	-v: print the version number\n");
-    printf("	-a : print compression results such as distortions\n");
+    printf("  -h: print the help information\n");
+    printf("  -h2: print the help information for SZ2 style command line\n");
+    printf("  -v: print the version number\n");
+    printf("  -a : print compression results such as distortions\n");
     printf("* input and output:\n");
-    printf("	-i <path> : original binary input file\n");
-    printf("	-o <path> : compressed output file, default in binary format\n");
-    printf("	-z <path> : compressed output (w -i) or input (w/o -i) file\n");
-    printf("	-t : store compressed output file in text format\n");
-//    printf("	-p: print meta data (configuration info)\n");
+    printf("  -i <path> : original binary input file\n");
+    printf("  -o <path> : compressed output file, default in binary format\n");
+    printf("  -z <path> : compressed output (w -i) or input (w/o -i) file\n");
+    printf("  -t : store compressed output file in text format\n");
+//    printf("  -p: print meta data (configuration info)\n");
     printf("* data type:\n");
-    printf("	-f: single precision (float type)\n");
-    printf("	-d: double precision (double type)\n");
-    printf("	-I <width>: integer type (width = 32 or 64)\n");
+    printf("  -f: single precision (float type)\n");
+    printf("  -d: double precision (double type)\n");
+    printf("  -I <width>: integer type (width = 32 or 64)\n");
     printf("* configuration file: \n");
-    printf("	-c <configuration file> : configuration file sz.config\n");
+    printf("  -c <configuration file> : configuration file sz.config\n");
     printf("* error control: (the error control parameters here will overwrite the setting in sz.config)\n");
-    printf("	-M <error control mode> <error bound (optional)> \n");
-    printf("	error control mode as follows: \n");
-    printf("		ABS (absolute error bound)\n");
-    printf("		REL (value range based error bound, so a.k.a., VR_REL)\n");
-    printf("		PSNR (peak signal-to-noise ratio)\n");
-    printf("		NORM (norm2 error : sqrt(sum(xi-xi')^2)\n");
-    printf("		ABS_AND_REL (using min{ABS, REL})\n");
-    printf("		ABS_OR_REL (using max{ABS, REL})\n");
-    printf("	error bound can be set directly after the error control mode, or separately with the following options:\n");
-    printf("		-A <absolute error bound>: specifying absolute error bound\n");
-    printf("		-R <value_range based relative error bound>: specifying relative error bound\n");
-//    printf("		-P <point-wise relative error bound>: specifying point-wise relative error bound\n");
-    printf("		-S <PSNR>: specifying PSNR\n");
-    printf("		-N <normErr>: specifying normErr\n");
-    printf("	-q <adaptive quantization bits> : number of adaptive quantization bits to use\n");
-    printf("    -Q: <prediction quantization bits> : number of adaptive quantization bits to use\n"); 
+    printf("  -M <error control mode> <error bound (optional)> \n");
+    printf("  error control mode as follows: \n");
+    printf("    ABS (absolute error bound)\n");
+    printf("    REL (value range based error bound, so a.k.a., VR_REL)\n");
+    printf("    PSNR (peak signal-to-noise ratio)\n");
+    printf("    NORM (norm2 error : sqrt(sum(xi-xi')^2)\n");
+    printf("    ABS_AND_REL (using min{ABS, REL})\n");
+    printf("    ABS_OR_REL (using max{ABS, REL})\n");
+    printf("  error bound can be set directly after the error control mode, or separately with the following options:\n");
+    printf("    -A <absolute error bound>: specifying absolute error bound\n");
+    printf("    -R <value_range based relative error bound>: specifying relative error bound\n");
+//    printf("    -P <point-wise relative error bound>: specifying point-wise relative error bound\n");
+    printf("    -S <PSNR>: specifying PSNR\n");
+    printf("    -N <normErr>: specifying normErr\n");
+    printf("* adaptive quantization control: (the AQ parameters here will overwrite the settings in sz.config)\n");
+    printf("  -q <adaptive quantization bits> : number of adaptive quantization bits to use\n");
+    printf("  -Q <prediction quantization bits> : number of adaptive quantization bits to use\n"); 
+    printf("  -m <adaptive quantization mode>\n");
+    printf("  adaptive quantization control mode as follows: \n");
+    printf("    RSP (reserved single quantization bin, pack adaptive bits)\n");
+    printf("    RSH (reserved single quantization bin, huffman encode adaptive bits)\n");
+    printf("    RAA (reserved adaptive quantization bin, append adaptive bits)\n");
+    printf("    RAP (reserved adaptive quantization bin, pack adaptive bits)\n");
+    printf("    RAH (reserved adaptive quantization bin, huffman encode adaptive bits)\n");
     printf("* dimensions: \n");
-    printf("	-1 <nx> : dimension for 1D data such as data[nx]\n");
-    printf("	-2 <nx> <ny> : dimensions for 2D data such as data[ny][nx]\n");
-    printf("	-3 <nx> <ny> <nz> : dimensions for 3D data such as data[nz][ny][nx] \n");
-    printf("	-4 <nx> <ny> <nz> <np>: dimensions for 4D data such as data[np][nz][ny][nx] \n");
+    printf("  -1 <nx> : dimension for 1D data such as data[nx]\n");
+    printf("  -2 <nx> <ny> : dimensions for 2D data such as data[ny][nx]\n");
+    printf("  -3 <nx> <ny> <nz> : dimensions for 3D data such as data[nz][ny][nx] \n");
+    printf("  -4 <nx> <ny> <nz> <np>: dimensions for 4D data such as data[np][nz][ny][nx] \n");
     printf("* examples: \n");
-    printf("	sz -f -i test.dat    -z test.dat.sz     -3 8 8 128 -M ABS 1e-3 \n");
-    printf("	sz -f -z test.dat.sz -o test.dat.sz.out -3 8 8 128 -M REL 1e-3 -a \n");
-    printf("	sz -f -i test.dat    -o test.dat.sz.out -3 8 8 128 -M ABS_AND_REL -A 1 -R 1e-3 -a \n");
-    printf("	sz -f -i test.dat    -o test.dat.sz.out -3 8 8 128 -c sz.config \n");
-    printf("	sz -f -i test.dat    -o test.dat.sz.out -3 8 8 128 -c sz.config -M ABS 1e-3 -a\n");
+    printf("  sz -f -i test.dat    -z test.dat.sz     -3 8 8 128 -M ABS 1e-3 \n");
+    printf("  sz -f -z test.dat.sz -o test.dat.sz.out -3 8 8 128 -M REL 1e-3 -a \n");
+    printf("  sz -f -i test.dat    -o test.dat.sz.out -3 8 8 128 -M ABS_AND_REL -A 1 -R 1e-3 -a \n");
+    printf("  sz -f -i test.dat    -o test.dat.sz.out -3 8 8 128 -c sz.config \n");
+    printf("  sz -f -i test.dat    -o test.dat.sz.out -3 8 8 128 -c sz.config -M ABS 1e-3 -a\n");
     exit(0);
 }
 
@@ -73,54 +81,54 @@ void usage_sz2() {
     printf("Usage: sz <options>\n");
     printf("Options:\n");
     printf("* operation type:\n");
-    printf("	-z <compressed file>: the compression operation with an optionally specified output file.\n");
+    printf("  -z <compressed file>: the compression operation with an optionally specified output file.\n");
     printf("                          (the compressed file will be named as <input_file>.sz if not specified)\n");
-    printf("	-x <decompressed file>: the decompression operation with an optionally specified output file\n");
+    printf("  -x <decompressed file>: the decompression operation with an optionally specified output file\n");
     printf("                      (the decompressed file will be named as <cmpred_file>.out if not specified)\n");
-//    printf("	-p: print meta data (configuration info)\n");
-    printf("	-h: print the help information\n");
-    printf("	-v: print the version number\n");
+//    printf("  -p: print meta data (configuration info)\n");
+    printf("  -h: print the help information\n");
+    printf("  -v: print the version number\n");
     printf("* data type:\n");
-    printf("	-f: single precision (float type)\n");
-    printf("	-d: double precision (double type)\n");
+    printf("  -f: single precision (float type)\n");
+    printf("  -d: double precision (double type)\n");
     printf("* configuration file: \n");
-    printf("	-c <configuration file> : configuration file sz.config\n");
+    printf("  -c <configuration file> : configuration file sz.config\n");
     printf("* error control: (the error control parameters here will overwrite the setting in sz.config)\n");
-    printf("	-M <error bound mode> : 10 options as follows. \n");
-    printf("		ABS (absolute error bound)\n");
-    printf("		REL (value range based error bound, so a.k.a., VR_REL)\n");
-    printf("		ABS_AND_REL (using min{ABS, REL})\n");
-    printf("		ABS_OR_REL (using max{ABS, REL})\n");
-    printf("		PSNR (peak signal-to-noise ratio)\n");
-    printf("		NORM (norm2 error : sqrt(sum(xi-xi')^2)\n");
-//    printf("		PW_REL (point-wise relative error bound)\n");
-    printf("	-A <absolute error bound>: specifying absolute error bound\n");
-    printf("	-R <value_range based relative error bound>: specifying relative error bound\n");
-//    printf("	-P <point-wise relative error bound>: specifying point-wise relative error bound\n");
-    printf("	-S <PSNR>: specifying PSNR\n");
-    printf("	-N <normErr>: specifying normErr\n");
+    printf("  -M <error bound mode> : 10 options as follows. \n");
+    printf("    ABS (absolute error bound)\n");
+    printf("    REL (value range based error bound, so a.k.a., VR_REL)\n");
+    printf("    ABS_AND_REL (using min{ABS, REL})\n");
+    printf("    ABS_OR_REL (using max{ABS, REL})\n");
+    printf("    PSNR (peak signal-to-noise ratio)\n");
+    printf("    NORM (norm2 error : sqrt(sum(xi-xi')^2)\n");
+//    printf("    PW_REL (point-wise relative error bound)\n");
+    printf("  -A <absolute error bound>: specifying absolute error bound\n");
+    printf("  -R <value_range based relative error bound>: specifying relative error bound\n");
+//    printf("  -P <point-wise relative error bound>: specifying point-wise relative error bound\n");
+    printf("  -S <PSNR>: specifying PSNR\n");
+    printf("  -N <normErr>: specifying normErr\n");
     printf("* input data file:\n");
-    printf("	-i <original data file> : original data file\n");
-    printf("	-s <compressed data file> : compressed data file in decompression\n");
+    printf("  -i <original data file> : original data file\n");
+    printf("  -s <compressed data file> : compressed data file in decompression\n");
     printf("* output type of decompressed file: \n");
-    printf("	-b (by default) : decompressed file stored in binary format\n");
-    printf("	-t : decompreadded file stored in text format\n");
-//    printf("	-T : pre-processing with Tucker Tensor Decomposition\n");
+    printf("  -b (by default) : decompressed file stored in binary format\n");
+    printf("  -t : decompreadded file stored in text format\n");
+//    printf("  -T : pre-processing with Tucker Tensor Decomposition\n");
     printf("* dimensions: \n");
-    printf("	-1 <nx> : dimension for 1D data such as data[nx]\n");
-    printf("	-2 <nx> <ny> : dimensions for 2D data such as data[ny][nx]\n");
-    printf("	-3 <nx> <ny> <nz> : dimensions for 3D data such as data[nz][ny][nx] \n");
-    printf("	-4 <nx> <ny> <nz> <np>: dimensions for 4D data such as data[np][nz][ny][nx] \n");
+    printf("  -1 <nx> : dimension for 1D data such as data[nx]\n");
+    printf("  -2 <nx> <ny> : dimensions for 2D data such as data[ny][nx]\n");
+    printf("  -3 <nx> <ny> <nz> : dimensions for 3D data such as data[nz][ny][nx] \n");
+    printf("  -4 <nx> <ny> <nz> <np>: dimensions for 4D data such as data[np][nz][ny][nx] \n");
     printf("* print compression results: \n");
-    printf("	-a : print compression results such as distortions\n");
+    printf("  -a : print compression results such as distortions\n");
     printf("* examples: \n");
-    printf("	sz -z -f -c sz.config -i testdata/x86/testfloat_8_8_128.dat -3 8 8 128\n");
-    printf("	sz -z -f -c sz.config -M ABS -A 1E-3 -i testdata/x86/testfloat_8_8_128.dat -3 8 8 128\n");
-    printf("	sz -x -f -s testdata/x86/testfloat_8_8_128.dat.sz -3 8 8 128\n");
-    printf("	sz -x -f -s testdata/x86/testfloat_8_8_128.dat.sz -i testdata/x86/testfloat_8_8_128.dat -3 8 8 128 -a\n");
-    printf("	sz -z -d -c sz.config -i testdata/x86/testdouble_8_8_128.dat -3 8 8 128\n");
-    printf("	sz -x -d -s testdata/x86/testdouble_8_8_128.dat.sz -3 8 8 128\n");
-    printf("	sz -p -s testdata/x86/testdouble_8_8_128.dat.sz\n");
+    printf("  sz -z -f -c sz.config -i testdata/x86/testfloat_8_8_128.dat -3 8 8 128\n");
+    printf("  sz -z -f -c sz.config -M ABS -A 1E-3 -i testdata/x86/testfloat_8_8_128.dat -3 8 8 128\n");
+    printf("  sz -x -f -s testdata/x86/testfloat_8_8_128.dat.sz -3 8 8 128\n");
+    printf("  sz -x -f -s testdata/x86/testfloat_8_8_128.dat.sz -i testdata/x86/testfloat_8_8_128.dat -3 8 8 128 -a\n");
+    printf("  sz -z -d -c sz.config -i testdata/x86/testdouble_8_8_128.dat -3 8 8 128\n");
+    printf("  sz -x -d -s testdata/x86/testdouble_8_8_128.dat.sz -3 8 8 128\n");
+    printf("  sz -p -s testdata/x86/testdouble_8_8_128.dat.sz\n");
     exit(0);
 }
 
@@ -212,6 +220,7 @@ int main(int argc, char *argv[]) {
     int adaptive_bits = 0;
     bool adaptive_regression = false;
     int prediction_bits = 0;
+    char *aqMode = nullptr;
 
     bool sz2mode = false;
 
@@ -338,6 +347,14 @@ int main(int argc, char *argv[]) {
                 errBoundMode = argv[i];
                 if (i + 1 < argc && argv[i + 1][0] != '-') {
                     errBound = argv[++i];
+                }
+                break;
+            case 'm':
+                if (++i == argc)
+                  usage();
+                aqMode = argv[i];
+                if (i + 1 < argc && argv[i + 1][0] != '-') {
+                    aqMode = argv[++i];
                 }
                 break;
             case 'A':
@@ -473,6 +490,29 @@ int main(int argc, char *argv[]) {
             usage();
             exit(0);
         }
+    }
+
+    if (aqMode != nullptr) {
+      if (strcmp(aqMode, SZ::AQ_STR[SZ::RS_PACK]) == 0) {
+        conf.aqMode = SZ::RS_PACK;
+      }
+      else if (strcmp(aqMode, SZ::AQ_STR[SZ::RS_HUFF]) == 0) {
+        conf.aqMode = SZ::RS_HUFF;
+      }
+      else if (strcmp(aqMode, SZ::AQ_STR[SZ::RA_APPEND]) == 0) {
+        conf.aqMode = SZ::RA_APPEND;
+      }
+      else if (strcmp(aqMode, SZ::AQ_STR[SZ::RA_PACK]) == 0) {
+        conf.aqMode = SZ::RA_PACK;
+      }
+      else if (strcmp(aqMode, SZ::AQ_STR[SZ::RA_HUFF]) == 0) {
+        conf.aqMode = SZ::RA_HUFF;
+      } else {
+        printf("Error: wrong adaptive quantization mode setting by using the option '-m'\n");
+        std::cout << aqMode << "\n";
+        usage();
+        exit(0);
+      }
     }
 
     if (adaptive_bits) {

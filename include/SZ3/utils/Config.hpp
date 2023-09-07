@@ -32,6 +32,12 @@ namespace SZ {
     constexpr const char *INTERP_ALGO_STR[] = {"INTERP_ALGO_LINEAR", "INTERP_ALGO_CUBIC"};
     constexpr INTERP_ALGO INTERP_ALGO_OPTIONS[] = {INTERP_ALGO_LINEAR, INTERP_ALGO_CUBIC};
 
+    enum AQ {
+      RS_PACK, RS_HUFF, RA_APPEND, RA_PACK, RA_HUFF
+    };
+    constexpr const char *AQ_STR[] = {"RSP", "RSH", "RAA", "RAP", "RAH"};
+    constexpr AQ AQ_options[] = {RS_PACK, RS_HUFF, RA_APPEND, RA_PACK, RA_HUFF};
+
     template<class T>
     const char *enum2Str(T e) {
         if (std::is_same<T, ALGO>::value) {
@@ -121,6 +127,21 @@ namespace SZ {
             adaptive_quantization = cfg.GetBoolean("AlgoSettings", "AdaptiveQuantization", adaptive_quantization);
             prediction_bits = cfg.GetInteger("AlgoSettings", "PredictionBits", prediction_bits);
             adaptive_regression = cfg.GetBoolean("AlgoSettings", "AdaptiveRegression", adaptive_regression);
+            
+            auto aqModeStr = cfg.Get("GlobalSettings", "adaptiveMode", "");
+            if (aqModeStr == AQ_STR[RS_PACK]) {
+              aqMode = RS_PACK;
+            } else if (aqModeStr == AQ_STR[RS_HUFF]) {
+              aqMode = RS_HUFF;
+            } else if (aqModeStr == AQ_STR[RA_APPEND]) {
+              aqMode = RA_APPEND;
+            } else if (aqModeStr == AQ_STR[RA_PACK]) {
+              aqMode = RA_PACK;
+            } else if (aqModeStr == AQ_STR[RA_HUFF]) {
+              aqMode = RA_HUFF;
+            }
+
+            hist = cfg.GetBoolean("AlgoSettings", "Histogram", hist);
 
 
         }
@@ -152,6 +173,8 @@ namespace SZ {
             write(prediction_bits, c);
             write(adaptive_regression, c);
             write(adaptive_quantization, c);
+            write(aqMode, c);
+            write(hist, c);
         };
 
         void load(const unsigned char *&c) {
@@ -181,6 +204,8 @@ namespace SZ {
             read(prediction_bits, c);
             read(adaptive_regression, c);
             read(adaptive_quantization, c);
+            read(aqMode, c);
+            read(hist, c);
         }
 
         void print() {
@@ -218,6 +243,8 @@ namespace SZ {
         int prediction_bits = 0;
         bool adaptive_regression = false;
         bool adaptive_quantization = false;
+        uint8_t aqMode = RS_HUFF;
+        bool hist = false;
 
     };
 

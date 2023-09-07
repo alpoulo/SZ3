@@ -38,15 +38,12 @@ namespace SZ {
 
             if (!getenv(envvar)) {
                 fprintf(stderr, "the environment variable %s was not found!\n", envvar);
-                exit(1);
-            }
-            if (snprintf(path, BUFSIZE, "%s", getenv(envvar)) >= BUFSIZE) {
-                fprintf(stderr, "BUFSIZE of %d was too small! aborting.\n", BUFSIZE);
+            } else if (snprintf(path, BUFSIZE, "%s", getenv(envvar)) >= BUFSIZE) {
+                fprintf(stderr, "BUFSIZE of %d was too small! aborting print.\n", BUFSIZE);
                 fprintf(stderr, "path: %s\n", path);
-                exit(1);
+            } else {
+                writefile(path, quant_inds.data(), quant_inds.size());
             }
-            writefile(path, quant_inds.data(), quant_inds.size());
-
 
             encoder.preprocess_encode(quant_inds, 0);
             size_t bufferSize = 1.2 * (frontend.size_est() + encoder.size_est() + sizeof(T) * quant_inds.size());

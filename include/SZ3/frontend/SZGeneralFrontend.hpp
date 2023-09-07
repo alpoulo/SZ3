@@ -66,7 +66,7 @@ namespace SZ {
         }
 
         T *decompress(std::vector<int> &quant_inds, T *dec_data) {
-            
+           
             quantizer.predecompress_data(quant_inds, num_elements);
             
             int const *quant_inds_pos = (int const *) quant_inds.data();

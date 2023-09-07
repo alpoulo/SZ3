@@ -21,13 +21,13 @@ namespace SZ {
 
         AdaptiveRegressionPredictor() : quantizer_independent(0), quantizer_liner(0), prev_coeffs{0}, current_coeffs{0} {}
 
-        AdaptiveRegressionPredictor(uint block_size, double eb, int ab) : quantizer_independent(eb / (N + 1), ab),
-                                                          quantizer_liner(eb / (N + 1) / block_size, ab),
+        AdaptiveRegressionPredictor(uint block_size, double eb, int ab, uint8_t aqMode) : quantizer_independent(eb / (N + 1), ab, aqMode),
+                                                          quantizer_liner(eb / (N + 1) / block_size, ab, aqMode),
                                                           prev_coeffs{0}, current_coeffs{0} {
         }
 
-        AdaptiveRegressionPredictor(uint block_size, double eb1, double eb2, int ab) : quantizer_independent(eb1, ab),
-                                                                       quantizer_liner(eb2, ab),
+        AdaptiveRegressionPredictor(uint block_size, double eb1, double eb2, int ab, uint8_t aqMode) : quantizer_independent(eb1, ab, aqMode),
+                                                                       quantizer_liner(eb2, ab, aqMode),
                                                                        prev_coeffs{0}, current_coeffs{0} {
         }
 
