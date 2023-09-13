@@ -678,7 +678,6 @@ namespace SZ {
         }
 
         void adaptive_unpack() {
-          std::cout << "unpacking adaptive bits . . . ";
           int shift = adaptive_bits;
           if (aqMode == RA_PACK) {
             shift = adaptive_bits + 1;
@@ -696,7 +695,6 @@ namespace SZ {
               offset -= shift;
             }
           }
-          std::cout << "done\n";
         }
 
         void clear() {
